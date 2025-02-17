@@ -7,7 +7,6 @@
 #    tls /config/certificate.pem /config/privateKey.pem
 # }
 
-
 # {$EXT_ENDPOINT1}:443 {
 #   reverse_proxy nextjs_server:3000
 #   reverse_proxy /api/v1/* fastapi_server:9090
@@ -17,6 +16,7 @@
   reverse_proxy nextjs_server:3000
   reverse_proxy /api/v1/* fastapi_server:9090
   reverse_proxy /docs/* docusaurus:3001
+  reverse_proxy /jaeger/* jaeger:16686  # Ajouté pour Jaeger
 }
 
 fastapi.{$EXT_ENDPOINT1}:80, fastapi.{$LOCAL_1}:80, fastapi.{$LOCAL_2}:80 {
@@ -34,6 +34,11 @@ stash.{$EXT_ENDPOINT1}:80, stash.{$LOCAL_1}:80, stash.{$LOCAL_2}:80 {
 static.{$EXT_ENDPOINT1}:80, static.{$LOCAL_1}:80, static.{$LOCAL_2}:80 {
   root * /code/static
   file_server browse
+}
+
+# Ajout d'un nouveau sous-domaine pour Jaeger (optionnel mais recommandé)
+jaeger.{$EXT_ENDPOINT1}:80, jaeger.{$LOCAL_1}:80, jaeger.{$LOCAL_2}:80 {
+  reverse_proxy jaeger:16686
 }
 
 ## Uncomment this to automatic ssl

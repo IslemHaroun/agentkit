@@ -4,6 +4,13 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict
 
+# Imports OpenTelemetry pour Jaeger
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -25,6 +32,10 @@ from app.core.fastapi import FastAPIWithInternalModels
 from app.utils.config_loader import load_agent_config, load_ingestion_configs
 from app.utils.fastapi_globals import GlobalsMiddleware, g
 
+# Configuration du tracing Jaeger
+trace.set_tracer_provider(TracerProvider())
+otlp_exporter = OTLPSpanExporter(endpoint="jaeger:4317")
+trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(otlp_exporter))
 
 async def user_id_identifier(request: Request) -> str:
     """Identify the user from the request."""
@@ -68,7 +79,6 @@ async def user_id_identifier(request: Request) -> str:
     ip = request.client.host if request.client else ""
     return ip + ":" + request.scope["path"]
 
-
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Start up and shutdown tasks."""
@@ -100,7 +110,6 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     gc.collect()
     yaml_configs.clear()
 
-
 logging.basicConfig(level=logging.INFO)
 
 # Core Application Instance
@@ -112,6 +121,8 @@ app = FastAPIWithInternalModels(
     lifespan=lifespan,
 )
 
+# Instrumentation Jaeger pour FastAPI
+FastAPIInstrumentor.instrument_app(app)
 
 app.add_middleware(
     SQLAlchemyMiddleware,
@@ -135,7 +146,6 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
-
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
@@ -143,12 +153,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     content = {"status_code": 10422, "message": exc_str, "data": None}
     return JSONResponse(content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
-
+@app.get("/test-jaeger")
+async def test_jaeger():
+    tracer = trace.get_tracer(__name__)
+    with tracer.start_as_current_span("test-operation") as span:
+        span.set_attribute("test.attribute", "test-value")
+        return {"message": "Test trace generated"}
+    
 @app.get("/")
 async def root() -> Dict[str, str]:
     """An example "Hello world" FastAPI route."""
     return {"message": "FastAPI backend"}
-
 
 # Add Routers
 app.include_router(

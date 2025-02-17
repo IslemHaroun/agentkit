@@ -13,6 +13,9 @@ services:
     env_file: ".env"
     depends_on:
       - database
+      - jaeger  # Ajouté
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
 
   nextjs_server:
     container_name: nextjs_server
@@ -28,13 +31,14 @@ services:
     env_file: "frontend/.env"
     depends_on:
       - fastapi_server
+      - jaeger  # Ajouté
 
   redis_server:
     image: redis:alpine
     container_name: redis_server
     restart: always
     ports:
-      - 6379:6379 # Remove this on production
+      - 6379:6379
     expose:
       - 6379
     env_file: ".env"
@@ -58,6 +62,16 @@ services:
       - POSTGRES_DATABASE=${DATABASE_NAME}
       - POSTGRES_HOST_AUTH_METHOD= "trust"
 
+  jaeger:  # Nouveau service
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    ports:
+      - "16686:16686"  # UI
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+
   caddy_reverse_proxy:
     container_name: caddy_reverse_proxy
     image: caddy:alpine
@@ -74,7 +88,6 @@ services:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
-
 
 volumes:
   caddy_data:
