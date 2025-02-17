@@ -4,6 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict
 
+from starlette.responses import Response
 # Imports OpenTelemetry pour Jaeger
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -31,6 +32,15 @@ from app.core.config import settings, yaml_configs
 from app.core.fastapi import FastAPIWithInternalModels
 from app.utils.config_loader import load_agent_config, load_ingestion_configs
 from app.utils.fastapi_globals import GlobalsMiddleware, g
+from prometheus_client import start_http_server, Counter, generate_latest, CONTENT_TYPE_LATEST
+import time
+
+REQUEST_COUNT = Counter("http_request_total", "Total HTTP requests")
+
+
+def process_request():
+    REQUEST_COUNT.inc()
+    time.sleep(2)
 
 # Configuration du tracing Jaeger
 trace.set_tracer_provider(TracerProvider())
@@ -55,8 +65,8 @@ async def user_id_identifier(request: Request) -> str:
                         algorithms=["HS256"],
                     )
                 except (
-                    jwt.JWTError,
-                    ValidationError,
+                        jwt.JWTError,
+                        ValidationError,
                 ):
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
@@ -159,11 +169,16 @@ async def test_jaeger():
     with tracer.start_as_current_span("test-operation") as span:
         span.set_attribute("test.attribute", "test-value")
         return {"message": "Test trace generated"}
-    
+
 @app.get("/")
 async def root() -> Dict[str, str]:
     """An example "Hello world" FastAPI route."""
+    process_request()
     return {"message": "FastAPI backend"}
+
+@app.get("/metrics")
+def metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # Add Routers
 app.include_router(
