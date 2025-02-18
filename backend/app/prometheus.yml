@@ -1,4 +1,15 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: "fastapi_server"
+
 scrape_configs:
+  - job_name: "prometheus"
+
+    static_configs:
+      - targets: ["localhost:9090"]
+
   - job_name: 'fastapi'
     static_configs:
-      - targets: ['0.0.0.0:9090']
+      - targets: [ "fastapi_server:8000" ]

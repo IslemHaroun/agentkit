@@ -5,17 +5,22 @@ services:
     container_name: fastapi_server
     build: ./backend
     restart: always
-    command: "sh -c 'alembic upgrade head && python app/document_ingestion.py  && uvicorn app.main:app --reload --workers 1 --host 0.0.0.0 --port 9090'"
+    command: "sh -c 'alembic upgrade head && python app/document_ingestion.py  && uvicorn app.main:app --reload --workers 1 --host 0.0.0.0 --port 8000'"
     volumes:
       - ./backend/app:/code
     expose:
-      - 9090
+      - 8000
+    ports:
+      - "8000:8000"
     env_file: ".env"
     depends_on:
       - database
       - jaeger  # Ajouté
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+    networks:
+      example-network:
+        ipv4_address: 172.16.238.14
 
   nextjs_server:
     container_name: nextjs_server
@@ -32,6 +37,9 @@ services:
     depends_on:
       - fastapi_server
       - jaeger  # Ajouté
+    networks:
+      example-network:
+        ipv4_address: 172.16.238.17
 
   redis_server:
     image: redis:alpine
@@ -42,6 +50,9 @@ services:
     expose:
       - 6379
     env_file: ".env"
+    networks:
+      example-network:
+        ipv4_address: 172.16.238.16
 
   database:
     image: ankane/pgvector:v0.4.1
@@ -61,6 +72,9 @@ services:
       - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
       - POSTGRES_DATABASE=${DATABASE_NAME}
       - POSTGRES_HOST_AUTH_METHOD= "trust"
+    networks:
+      example-network:
+        ipv4_address: 172.16.238.15
 
   jaeger:  # Nouveau service
     image: jaegertracing/all-in-one:latest
@@ -84,6 +98,12 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DATASOURCES_DEFAULT_URL=http://prometheus:9090
+    depends_on:
+      - prometheus
+    networks:
+      example-network:
+        ipv4_address: 172.16.238.12
 
   prometheus:
     image: prom/prometheus:latest
@@ -98,6 +118,9 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
     depends_on:
       - fastapi_server
+    networks:
+      example-network:
+        ipv4_address: 172.16.238.11
 
   caddy_reverse_proxy:
     container_name: caddy_reverse_proxy
@@ -121,3 +144,12 @@ volumes:
   caddy_config:
   grafana_data:
   prometheus_data:
+
+networks:
+  example-network:
+    name: example-network
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.16.238.0/24

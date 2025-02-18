@@ -3,6 +3,7 @@ import gc
 import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict
+import uvicorn
 
 from starlette.responses import Response
 # Imports OpenTelemetry pour Jaeger
@@ -219,3 +220,7 @@ app.include_router(
     prefix=settings.API_V1_STR,
 )
 add_pagination(app)
+
+if __name__ == "__main__":
+    uvicorn.run("fastapi_code:app")
+

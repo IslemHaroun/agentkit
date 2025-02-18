@@ -17,11 +17,12 @@ RUN poetry add opentelemetry-api \
     opentelemetry-sdk \
     opentelemetry-instrumentation-fastapi \
     opentelemetry-exporter-otlp \
-    prometheus_client
+    prometheus_client \
+    email-validator
 
 # Allow installing dev dependencies to run tests
 ARG INSTALL_DEV=false
 RUN bash -c "if [ $INSTALL_DEV == 'true' ] ; then poetry install --with dev --no-root ; else poetry install --no-root --without dev ; fi"
 
 ENV PYTHONPATH=/code
-EXPOSE 9090
+EXPOSE 8000
