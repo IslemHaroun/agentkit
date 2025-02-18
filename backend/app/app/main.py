@@ -221,6 +221,3 @@ app.include_router(
 )
 add_pagination(app)
 
-if __name__ == "__main__":
-    uvicorn.run("fastapi_code:app")
-
