@@ -16,7 +16,8 @@ COPY app/pyproject.toml app/poetry.lock* /code/
 RUN poetry add opentelemetry-api \
     opentelemetry-sdk \
     opentelemetry-instrumentation-fastapi \
-    opentelemetry-exporter-otlp
+    opentelemetry-exporter-otlp \
+    prometheus_client
 
 # Allow installing dev dependencies to run tests
 ARG INSTALL_DEV=false

@@ -32,20 +32,28 @@ from app.core.config import settings, yaml_configs
 from app.core.fastapi import FastAPIWithInternalModels
 from app.utils.config_loader import load_agent_config, load_ingestion_configs
 from app.utils.fastapi_globals import GlobalsMiddleware, g
-from prometheus_client import start_http_server, Counter, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import start_http_server, Counter, generate_latest, CONTENT_TYPE_LATEST, Histogram
 import time
 
 REQUEST_COUNT = Counter("http_request_total", "Total HTTP requests")
+
+REQUEST_LATENCY = Histogram("http_request_latency", "Request latency")
+
+ERROR_COUNT = Counter(
+    "http_requests_errors_total", "Total error requests",
+)
 
 
 def process_request():
     REQUEST_COUNT.inc()
     time.sleep(2)
 
+
 # Configuration du tracing Jaeger
 trace.set_tracer_provider(TracerProvider())
 otlp_exporter = OTLPSpanExporter(endpoint="jaeger:4317")
 trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(otlp_exporter))
+
 
 async def user_id_identifier(request: Request) -> str:
     """Identify the user from the request."""
@@ -89,6 +97,7 @@ async def user_id_identifier(request: Request) -> str:
     ip = request.client.host if request.client else ""
     return ip + ":" + request.scope["path"]
 
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Start up and shutdown tasks."""
@@ -119,6 +128,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     g.cleanup()
     gc.collect()
     yaml_configs.clear()
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -156,12 +166,32 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
+@app.middleware('http')
+async def prometheus_middleware(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+
+    method = request.method
+    endpoint = request.url.path
+    status_code = response.status_code
+
+    # Mise à jour des métriques
+    REQUEST_COUNT.labels(method=method, endpoint=endpoint, http_status=status_code).inc()
+    REQUEST_LATENCY.labels(method=method, endpoint=endpoint).observe(process_time)
+
+    if status_code >= 400:
+        ERROR_COUNT.labels(method=method, endpoint=endpoint, http_status=status_code).inc()
+
+    return response
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
     logging.error(f"{request}: {exc_str}")
     content = {"status_code": 10422, "message": exc_str, "data": None}
     return JSONResponse(content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
 
 @app.get("/test-jaeger")
 async def test_jaeger():
@@ -170,15 +200,18 @@ async def test_jaeger():
         span.set_attribute("test.attribute", "test-value")
         return {"message": "Test trace generated"}
 
+
 @app.get("/")
 async def root() -> Dict[str, str]:
     """An example "Hello world" FastAPI route."""
     process_request()
     return {"message": "FastAPI backend"}
 
+
 @app.get("/metrics")
-def metrics():
+async def metrics():
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
 
 # Add Routers
 app.include_router(
