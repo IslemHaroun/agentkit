@@ -48,8 +48,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Create reports directory
-        run: mkdir -p security-reports
+      - name: Create reports directory structure
+        run: |
+          mkdir -p reports/security/trivy
+          mkdir -p reports/security/grype
+          mkdir -p reports/security/summary
 
       - name: Run Trivy vulnerability scanner (JSON)
         uses: aquasecurity/trivy-action@master
@@ -57,7 +60,7 @@ jobs:
           scan-type: 'fs'
           scan-ref: '.'
           format: 'json'
-          output: 'security-reports/trivy-results.json'
+          output: 'reports/security/trivy/scan-results.json'
           severity: 'CRITICAL,HIGH,MEDIUM,LOW'
           exit-code: '0'
 
@@ -67,16 +70,16 @@ jobs:
           scan-type: 'fs'
           scan-ref: '.'
           format: 'table'
-          output: 'security-reports/trivy-results.txt'
+          output: 'reports/security/trivy/scan-results.txt'
           severity: 'CRITICAL,HIGH,MEDIUM,LOW'
           exit-code: '0'
 
       - name: Create markdown summary
         run: |
-          echo "# Security Scan Results" > security-reports/summary.md
+          echo "# Security Scan Results" > reports/security/summary/report.md
           echo "## Trivy Scan Results" >> security-reports/summary.md
           echo '```' >> security-reports/summary.md
-          cat security-reports/trivy-results.txt >> security-reports/summary.md
+          cat reports/security/trivy/scan-results.txt >> reports/security/summary/report.md
           echo '```' >> security-reports/summary.md
 
       - name: Install Grype
@@ -85,11 +88,11 @@ jobs:
 
       - name: Run Grype scan
         run: |
-          grype dir:. -o json > security-reports/grype-results.json
-          grype dir:. -o table > security-reports/grype-report.txt
+          grype dir:. -o json > reports/security/grype/scan-results.json
+          grype dir:. -o table > reports/security/grype/scan-results.txt
           echo -e "\n## Grype Scan Results" >> security-reports/summary.md
           echo '```' >> security-reports/summary.md
-          cat security-reports/grype-report.txt >> security-reports/summary.md
+          cat reports/security/grype/scan-results.txt >> reports/security/summary/report.md
           echo '```' >> security-reports/summary.md
 
       - name: Upload security scan results
@@ -97,7 +100,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: security-scan-reports
-          path: security-reports/
+          path: reports/security/
           retention-days: 90
 
   build-and-deploy:
