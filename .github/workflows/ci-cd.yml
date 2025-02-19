@@ -29,8 +29,8 @@ env:
   NEXT_PUBLIC_API_URL: http://fastapi_server:8000
   NEXTAUTH_URL: http://localhost:3000
   NEXTAUTH_SECRET: ${{ github.sha }}_next_secret
-  GITHUB_ID: ${{ secrets.GITHUB_ID }}
-  GITHUB_SECRET: ${{ secrets.GITHUB_SECRET }}
+  GITHUB_ID: dummy_github_id_123
+  GITHUB_SECRET: dummy_github_secret_456
   
   # Grafana
   GF_SECURITY_ADMIN_USER: admin_${{ github.ref_name }}
