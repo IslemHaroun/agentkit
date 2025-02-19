@@ -51,7 +51,7 @@ jobs:
       - name: Create reports directory
         run: mkdir -p security-reports
 
-      - name: Run Trivy vulnerability scanner
+      - name: Run Trivy vulnerability scanner (JSON)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
@@ -59,14 +59,25 @@ jobs:
           format: 'json'
           output: 'security-reports/trivy-results.json'
           severity: 'CRITICAL,HIGH,MEDIUM,LOW'
-          exit-code: '0'  # Ne pas échouer la pipeline
+          exit-code: '0'
 
-      - name: Generate Trivy HTML report
-        if: always()
+      - name: Run Trivy vulnerability scanner (Table format)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          output: 'security-reports/trivy-results.txt'
+          severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+          exit-code: '0'
+
+      - name: Create markdown summary
         run: |
-          trivy --cache-dir .trivycache/ filesystem --format template --template "@contrib/html.tpl" -o security-reports/trivy-report.html .
-          echo "## Trivy Scan Results" > security-reports/summary.md
-          trivy --cache-dir .trivycache/ filesystem --severity HIGH,CRITICAL --format table . >> security-reports/summary.md
+          echo "# Security Scan Results" > security-reports/summary.md
+          echo "## Trivy Scan Results" >> security-reports/summary.md
+          echo '```' >> security-reports/summary.md
+          cat security-reports/trivy-results.txt >> security-reports/summary.md
+          echo '```' >> security-reports/summary.md
 
       - name: Install Grype
         run: |
@@ -77,7 +88,9 @@ jobs:
           grype dir:. -o json > security-reports/grype-results.json
           grype dir:. -o table > security-reports/grype-report.txt
           echo -e "\n## Grype Scan Results" >> security-reports/summary.md
+          echo '```' >> security-reports/summary.md
           cat security-reports/grype-report.txt >> security-reports/summary.md
+          echo '```' >> security-reports/summary.md
 
       - name: Upload security scan results
         if: always()
