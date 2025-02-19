@@ -53,6 +53,9 @@ jobs:
           mkdir -p reports/security/trivy
           mkdir -p reports/security/grype
           mkdir -p reports/security/summary
+          touch reports/security/trivy/.gitkeep
+          touch reports/security/grype/.gitkeep
+          touch reports/security/summary/.gitkeep
 
       - name: Run Trivy vulnerability scanner (JSON)
         uses: aquasecurity/trivy-action@master
@@ -74,14 +77,6 @@ jobs:
           severity: 'CRITICAL,HIGH,MEDIUM,LOW'
           exit-code: '0'
 
-      - name: Create markdown summary
-        run: |
-          echo "# Security Scan Results" > reports/security/summary/report.md
-          echo "## Trivy Scan Results" >> security-reports/summary.md
-          echo '```' >> security-reports/summary.md
-          cat reports/security/trivy/scan-results.txt >> reports/security/summary/report.md
-          echo '```' >> security-reports/summary.md
-
       - name: Install Grype
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
@@ -90,10 +85,22 @@ jobs:
         run: |
           grype dir:. -o json > reports/security/grype/scan-results.json
           grype dir:. -o table > reports/security/grype/scan-results.txt
-          echo -e "\n## Grype Scan Results" >> security-reports/summary.md
-          echo '```' >> security-reports/summary.md
-          cat reports/security/grype/scan-results.txt >> reports/security/summary/report.md
-          echo '```' >> security-reports/summary.md
+
+      - name: Generate Security Report Summary
+        run: |
+          {
+            echo "# Security Scan Results"
+            echo
+            echo "## Trivy Scan Results"
+            echo "\`\`\`"
+            cat reports/security/trivy/scan-results.txt
+            echo "\`\`\`"
+            echo
+            echo "## Grype Scan Results"
+            echo "\`\`\`"
+            cat reports/security/grype/scan-results.txt
+            echo "\`\`\`"
+          } > reports/security/summary/report.md
 
       - name: Upload security scan results
         if: always()
